@@ -1,3 +1,4 @@
 ^inst/noBuild$
 ^UNCMolGen\.Rproj$
 ^\.Rproj\.user$
+^LICENSE\.md$
