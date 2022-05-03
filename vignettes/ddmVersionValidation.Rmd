@@ -22,7 +22,9 @@ If installing for the first time, users must also install the UNCMolGen package 
 ```{r, eval=FALSE}
 if (!"remotes" %in% installed.packages()) install.packages("remotes")
 if (!"UNCMolGen" %in% installed.packages()) {
-  remotes::install_github("daynefiler/UNCMolGen", dependencies = TRUE)
+  remotes::install_github("daynefiler/UNCMolGen", 
+                          dependencies = TRUE, 
+                          build_vignettes = TRUE)
 } 
 ```
 
