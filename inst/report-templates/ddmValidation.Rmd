@@ -1,0 +1,262 @@
+---
+title: "SophiaDDM Bioinformatics Validation"
+author: "`r params$user`"
+params:
+  var0path:
+    label: "Old variant table file:"
+    input: file
+    value: NA
+  var1path: 
+    label: "New variant table file:"
+    input: file
+    value: NA
+  exn0path:
+    label: "Old exon coverage file:"
+    input: file
+    value: NA
+  exn1path: 
+    label: "New exon coverage file:"
+    input: file
+    value: NA
+  user: 
+    label: "Report author:"
+    input: text
+    value: NA
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    css: "templates.css"
+---
+
+```{r setup, include=FALSE}
+library(UNCMolGen)
+library(data.table)
+library(reactable)
+knitr::opts_chunk$set(echo = FALSE, fig.align = "center")
+```
+
+### Input files
+
+```{r Check inputs}
+inptRows <- c("Old variant table", "New variant table", 
+              "Old exon coverage", "New exon coverage")
+inpt <- data.table(lbl = inptRows,
+                   fl = with(params, c(var0path, var1path, exn0path, exn1path)))
+if (NROW(inpt) == 0) {
+  inpt <- data.table(lbl = inptRows, fl = "NONE")
+}
+inpt[ , fl := normalizePath(fl, mustWork = FALSE)]
+inpt[ , tst := file.exists(fl)]
+reactable(inpt[ , .(lbl, fl)],
+          columns = list(
+            lbl = colDef(name = "", width = 100),
+            fl = colDef(name = "File path")
+          ),
+          rowStyle = function(i) {
+            list(color = ifelse(inpt[i, tst], "black", "red"),
+                             color = "white")
+          })
+```
+
+```{r, results='asis'}
+if (inpt[ , any(!tst)]) {
+  cat(c("::: {.warningbox data-latex=\"\"}",
+        "**ERROR**",
+        "",
+        "Execution halted due to missing file(s). See 'Input' files above.",
+        "Missing files highlighted in red.",
+        ":::"), 
+      sep = "\n")
+  knitr::knit_exit()
+}
+```
+
+```{r, results='asis'}
+if (inpt[ , any(duplicated(fl))]) {
+  cat(c("::: {.warningbox data-latex=\"\"}",
+        "**WARNING**",
+        "",
+        "At least one file duplicated in given inputs.",
+        ":::"), 
+      sep = "\n")
+}
+```
+
+
+```{r LoadData, echo=FALSE}
+## Load in SOPHiA files
+var0 <- ddmReadVariantTable(fpath = params$var0path)
+var1 <- ddmReadVariantTable(fpath = params$var1path)
+exn0 <- ddmReadExonTable(fpath = params$exn0path)
+exn1 <- ddmReadExonTable(fpath = params$exn1path)
+```
+
+## Variant call comparison
+
+### Summary of differences
+
+```{r variantComparison, echo=FALSE}
+## Check for differences in variant tables and summarize differences if present
+varMrgFlds <- c("sampleID", 
+                "refGenome",
+                "chromosome",
+                "genome_position",
+                "ref",
+                "alt")
+varDiff <- tableDiffs(var0,
+                      var1, 
+                      mrgFlds = varMrgFlds, 
+                      d0name = "old", 
+                      d1name = "new")
+varDiff$ctbl
+```
+
+`r if (varDiff$unqVar) "### Variables unique to one version"`
+
+```{r, eval=varDiff$unqVar}
+varUnq <- varDiff$diffSmry$vars.ns.table
+varUnq[ , version := gsub("y", "New", version)]
+varUnq[ , version := gsub("x", "Old", version)]
+reactable(data = varUnq[ , .(version, variable)],
+          columns = list(
+            version = colDef(name = "Version with unique variable"),
+            variable = colDef(name = "Variable name")
+          ))
+```
+
+`r if (varDiff$dltVar) "### Variables with discordant data"`
+
+```{r, eval=varDiff$dltVar}
+varDlt <- varDiff$diffSmry$diffs.byvar.table
+reactable(data = varDlt[n > 0, .(var.x, n)],
+          columns = list(
+            var.x = colDef(name = "Variable name"),
+            n = colDef(name = "Number of differences")
+          ))
+```
+
+`r if (varDiff$unqObs) "### Observations unique to one version"`
+
+```{r, eval=varDiff$dltVar}
+varObsUnq <- varDiff$diffSmry$obs.table
+varObsUnq[ , version := gsub("y", "New", version)]
+varObsUnq[ , version := gsub("x", "Old", version)]
+reactable(data = varObsUnq,
+          columns = list(
+            version = colDef(name = "Version with unique observation"),
+            chromosome = colDef(name = "chr"),
+            genome_position = colDef(name = "pos"),
+            observation = colDef(name = "Row index")
+          ))
+```
+
+`r if (varDiff$dltObs) "### Observations with discordant data"`
+
+```{r, eval=varDiff$dltObs}
+varObsDlt <- varDiff$diffSmry$diffs.table
+varObsDlt[ , var.y := NULL]
+reactable(data = varObsDlt,
+          columns = list(
+            var.x = colDef(name = "variable"),
+            chromosome = colDef(name = "chr"),
+            genome_position = colDef(name = "pos"),
+            values.x = colDef(name = "Old value"),
+            values.y = colDef(name = "New value"),
+            row.x = colDef(name = "Old row index"),
+            row.y = colDef(name = "New row index")
+          ))
+```
+
+### Distribution of read depth differences
+
+```{r}
+valDiffBoxplot(var0, var1, varMrgFlds, 'depth', 'sampleID')
+```
+
+### Distribution of variant allele fraction differences
+
+```{r}
+valDiffBoxplot(var0, var1, varMrgFlds, 'var_percent', 'sampleID')
+```
+
+
+## Exon coverage comparison 
+
+### Summary of differences
+
+```{r exonComparison}
+exnMrgFlds <- c("sampleID", 
+                "seqnames",
+                "txName",
+                "exon_rank",
+                "begin",
+                "end")
+exnDiff <- tableDiffs(d0 = exn0,
+                      d1 = exn1, 
+                      mrgFlds = exnMrgFlds, 
+                      d0name = "old", 
+                      d1name = "new")
+exnDiff$ctbl
+```
+
+`r if (exnDiff$unqVar) "### Variables unique to one version"`
+
+```{r, eval=exnDiff$unqVar}
+exnUnq <- exnDiff$diffSmry$vars.ns.table
+exnUnq[ , version := gsub("y", "New", version)]
+exnUnq[ , version := gsub("x", "Old", version)]
+reactable(data = exnUnq[ , .(version, variable)],
+          columns = list(
+            version = colDef(name = "Version with unique variable"),
+            variable = colDef(name = "Variable name")
+          ))
+```
+
+`r if (exnDiff$dltVar) "### Variables with discordant data"`
+
+```{r, eval=exnDiff$dltVar}
+exnDlt <- exnDiff$diffSmry$diffs.byvar.table
+reactable(data = exnDlt[n > 0, .(var.x, n)],
+          columns = list(
+            var.x = colDef(name = "Variable name"),
+            n = colDef(name = "Number of differences")
+          ))
+```
+
+`r if (exnDiff$unqObs) "### Observations unique to one version"`
+
+```{r, eval=exnDiff$dltVar}
+exnObsUnq <- exnDiff$diffSmry$obs.table
+exnObsUnq[ , version := gsub("y", "New", version)]
+exnObsUnq[ , version := gsub("x", "Old", version)]
+reactable(data = exnObsUnq,
+          columns = list(
+            version = colDef(name = "Version with unique observation"),
+            seqnames = colDef(name = "chr"),
+            observation = colDef(name = "Row index")
+          ))
+```
+
+`r if (exnDiff$dltObs) "### Observations with discordant data"`
+
+```{r, eval=exnDiff$dltObs}
+exnObsDlt <- exnDiff$diffSmry$diffs.table
+exnObsDlt[ , var.y := NULL]
+reactable(data = exnObsDlt,
+          columns = list(
+            var.x = colDef(name = "variable"),
+            seqnames = colDef(name = "chr"),
+            values.x = colDef(name = "Old value"),
+            values.y = colDef(name = "New value"),
+            row.x = colDef(name = "Old row index"),
+            row.y = colDef(name = "New row index")
+          ))
+```
+
+### Distribution of mean coverage differences
+
+```{r}
+valDiffBoxplot(exn0, exn1, exnMrgFlds, 'meanCov', 'sampleID')
+```
+
+

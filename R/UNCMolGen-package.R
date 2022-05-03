@@ -13,3 +13,6 @@
 #' @importFrom data.table data.table
 ## usethis namespace: end
 NULL
+
+GOODCOL = "green"
+BADCOL = "red"

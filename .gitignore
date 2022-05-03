@@ -18,3 +18,4 @@ vignettes/*.sum
 .Rdata
 .httr-oauth
 .DS_Store
+inst/doc
