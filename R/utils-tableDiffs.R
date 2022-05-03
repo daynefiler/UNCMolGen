@@ -14,10 +14,10 @@
 #' @export
 
 tableDiffs <- function(d0, d1, mrgFlds,
-                           d0name = "old",
-                           d1name = "new",
-                           gcol = getOption("UNCMolGen.gcol", GOODCOL),
-                           bcol = getOption("UNCMolGen.gcol", BADCOL)) {
+                       d0name = "old",
+                       d1name = "new",
+                       gcol = getOption("UNCMolGen.gcol", GOODCOL),
+                       bcol = getOption("UNCMolGen.gcol", BADCOL)) {
 
   ## DT bindings:
   J <- statistic <- value <- NULL
