@@ -1,6 +1,6 @@
 ---
 title: "DDM Version Validation"
-output: rmarkdown::html_vignette
+output: html_document
 vignette: >
   %\VignetteIndexEntry{DDM Version Validation}
   %\VignetteEngine{knitr::rmarkdown}
@@ -39,7 +39,9 @@ ddmValidation()
 
 After running the function, a screen should popup with the following:
 
-![](images/ddmValidation-blank.png)
+```{r,}
+knitr::include_graphics("images/ddmValidation-blank.png")
+```
 
 The user then enters their name in the author field and selects the appropriate SOPHiA DDM output file(s) for each version (old & new).
 The function compares both the `"full_variant_table.txt"` and the `"exon_coverage_stats.txt"` files provided by SOPHiA DDM.
